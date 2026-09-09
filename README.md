@@ -26,21 +26,37 @@ LLM to generate an answer with source information.
 ## Current Architecture
 
 PDF
+
 ↓
+
 Text Extraction
+
 ↓
+
 Text Cleaning
+
 ↓
+
 Document Chunking
+
 ↓
+
 Hugging Face Embeddings
+
 ↓
+
 FAISS Vector Store
+
 ↓
+
 Semantic Retrieval
+
 ↓
+
 Qwen 3.6 27B
+
 ↓
+
 Answer + Sources
 
 ## Current Technologies
@@ -84,6 +100,7 @@ generates an answer using the retrieved context.
 ## Disclaimer
 
 This project is intended for educational and research purposes.
+
 It provides information extracted from financial documents and should
 not be treated as financial advice or a recommendation to buy or sell
 securities.

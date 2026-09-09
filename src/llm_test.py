@@ -23,7 +23,7 @@ response = client.chat.completions.create(
             "content":question
         }
     ],
-    reasoning_format="hidden"
+    reasoning_format="hidden",
 )
 
 print("\n --- LLM ANSWER --- \n")

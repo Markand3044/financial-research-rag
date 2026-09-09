@@ -29,6 +29,6 @@ vector_store = FAISS.from_documents(Doc, embedding)
 
 print("FAISS vector store created")
 
-vector_store.save_local("C:/Users/Admin/Desktop/FinancialResearchRAG/data/vectorstore/infosys_faiss.json")
+vector_store.save_local("C:/Users/Admin/Desktop/FinancialResearchRAG/data/vectorstore/infosys_faiss")
 
 print("FAISS vector store saved.")

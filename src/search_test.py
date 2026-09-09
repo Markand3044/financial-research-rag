@@ -6,7 +6,7 @@ embedding = HuggingFaceEmbeddings(
     model_name = "sentence-transformers/all-MiniLM-L6-v2"
 )
 
-vector_store = FAISS.load_local("C:/Users/Admin/Desktop/FinancialResearchRAG/data/vectorstore/infosys_faiss.json",
+vector_store = FAISS.load_local("C:/Users/Admin/Desktop/FinancialResearchRAG/data/vectorstore/infosys_faiss",
                                 embedding,
                                 allow_dangerous_deserialization=True)
 
@@ -27,3 +27,4 @@ for i, document in enumerate(result, start=1):
     print(document.metadata)
 
     print("\n" + "-" * 80)
+    

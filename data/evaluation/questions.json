@@ -1,0 +1,42 @@
+[
+    {
+        "question": "What was Infosys total revenue from operations in fiscal 2026?",
+        "expected_page": 33
+    },
+     {
+        "question": "How many employees did Infosys have?",
+        "expected_page": 10
+    },
+    {
+        "question": "How many active clients did Infosys have?",
+        "expected_page": 10
+    },
+    {
+        "question": "What percentage of Infosys revenue came from North America?",
+        "expected_page": 10
+    },
+    {
+        "question": "What was Infosys revenue from operations in fiscal 2025?",
+        "expected_page": 33
+    },
+    {
+        "question": "What is the purpose of Infosys?",
+        "expected_page": 10
+    },
+    {
+        "question": "What are the values represented by C-LIFE?",
+        "expected_page": 10
+    },
+    {
+        "question": "How many countries does Infosys operate in?",
+        "expected_page": 10
+    },
+    {
+        "question": "What was Infosys consolidated total income in fiscal 2026?",
+        "expected_page": 33
+    },
+    {
+        "question": "What are the major geographical regions contributing to Infosys revenue?",
+        "expected_page": 10
+    }
+]

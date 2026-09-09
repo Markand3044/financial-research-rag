@@ -13,6 +13,8 @@ text_spliter = RecursiveCharacterTextSplitter(chunk_size = 1000, chunk_overlap =
 
 chunks = []
 
+chunk_id = 0
+
 for page in pages :
     page_chunk = text_spliter.split_text(page['text'])
 
@@ -24,9 +26,13 @@ for page in pages :
                 "company":'Infosys',
                 "document" : "Infosys Integrated Annual Report 2025-2026",
                 "financial_year" : "2025-2026",
-                "pdf_page" : page['pdf_page']
+                "pdf_page" : page['pdf_page'],
+                "pdf_page": page["pdf_page"],
+                "chunk_id": chunk_id
             }
         })
+
+        chunk_id += 1 
 
 with open(output_path, 'w', encoding='utf -8') as file:
     json.dump(chunks, file, ensure_ascii= False, indent=4)

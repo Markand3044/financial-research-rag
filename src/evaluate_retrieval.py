@@ -17,7 +17,7 @@ embedding = HuggingFaceEmbeddings(
 )
 
 
-vector_store = FAISS.load_local("C:/Users/Admin/Desktop/FinancialResearchRAG/data/vectorstore/infosys_faiss.json",
+vector_store = FAISS.load_local("C:/Users/Admin/Desktop/FinancialResearchRAG/data/vectorstore/infosys_faiss",
                                 embedding,
                                 allow_dangerous_deserialization=True)
 

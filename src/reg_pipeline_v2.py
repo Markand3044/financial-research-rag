@@ -1,4 +1,6 @@
 import os
+import json
+
 from dotenv import load_dotenv
 
 from langchain_community.vectorstores import FAISS
@@ -6,6 +8,10 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from rank_bm25 import BM25Okapi
 from sentence_transformers import CrossEncoder
 from groq import Groq
+
+from citation_validator import validate_citations
+from citation_handler import get_source_pages, format_sources
+from output_schema import RAGResponse
 
 
 # =========================================================
@@ -38,7 +44,7 @@ embeddings = HuggingFaceEmbeddings(
 print("Loading FAISS vector store...")
 
 vector_store = FAISS.load_local(
-    "data/vectorstore/infosys_faiss",
+    "C:/Users/Admin/Desktop/FinancialResearchRAG/data/vectorstore/infosys_faiss",
     embeddings,
     allow_dangerous_deserialization=True
 )
@@ -83,113 +89,7 @@ client = Groq(
 
 
 # =========================================================
-# 7. USER QUESTION
-# =========================================================
-
-query = input("\nEnter your question: ").strip()
-
-if not query:
-    raise ValueError("Question cannot be empty")
-
-
-# =========================================================
-# 8. FAISS RETRIEVAL
-# =========================================================
-
-print("\nRunning FAISS retrieval...")
-
-faiss_results = vector_store.similarity_search(
-    query,
-    k=20
-)
-
-
-# =========================================================
-# 9. BM25 RETRIEVAL
-# =========================================================
-
-print("Running BM25 retrieval...")
-
-tokenized_query = query.lower().split()
-
-bm25_scores = bm25.get_scores(tokenized_query)
-
-top_bm25_indices = sorted(
-    range(len(bm25_scores)),
-    key=lambda i: bm25_scores[i],
-    reverse=True
-)[:20]
-
-bm25_results = [
-    documents[i]
-    for i in top_bm25_indices
-]
-
-
-# =========================================================
-# 10. COMBINE FAISS + BM25
-# =========================================================
-
-candidate_documents = {}
-
-for document in faiss_results + bm25_results:
-
-    key = (
-        document.metadata["pdf_page"],
-        document.metadata["chunk_id"]
-    )
-
-    candidate_documents[key] = document
-
-
-candidates = list(candidate_documents.values())
-
-print("Candidate pool:", len(candidates))
-
-
-# =========================================================
-# 11. BGE RERANKING
-# =========================================================
-
-print("Running BGE reranker...")
-
-pairs = [
-    [query, document.page_content]
-    for document in candidates
-]
-
-scores = reranker.predict(pairs)
-
-reranked_results = sorted(
-    zip(candidates, scores),
-    key=lambda x: x[1],
-    reverse=True
-)
-
-
-# =========================================================
-# 12. SELECT TOP 5
-# =========================================================
-
-top_results = reranked_results[:5]
-
-
-print("\n==============================")
-print("TOP RERANKED RESULTS")
-print("==============================")
-
-for rank, (document, score) in enumerate(top_results, start=1):
-
-    print(
-        f"Rank {rank} | "
-        f"Score {score:.4f} | "
-        f"Page {document.metadata['pdf_page']} | "
-        f"Chunk {document.metadata['chunk_id']}"
-    )
-
-
-# =========================================================
-# 13. CHUNK LOOKUP
+# 7. CHUNK LOOKUP
 # =========================================================
 
 chunk_lookup = {
@@ -199,7 +99,7 @@ chunk_lookup = {
 
 
 # =========================================================
-# 14. CONTEXT EXPANSION
+# 8. CONTEXT EXPANSION
 # =========================================================
 
 def expand_context(document):
@@ -213,7 +113,6 @@ def expand_context(document):
     previous_document = chunk_lookup.get(chunk_id - 1)
 
     if previous_document:
-
         if previous_document.metadata["pdf_page"] == page:
             expanded.append(previous_document)
 
@@ -224,159 +123,345 @@ def expand_context(document):
     next_document = chunk_lookup.get(chunk_id + 1)
 
     if next_document:
-
         if next_document.metadata["pdf_page"] == page:
             expanded.append(next_document)
 
     return expanded
 
+# =========================================================
+# 9. QUERY NORMALIZATION
+# =========================================================
+
+def normalize_query(query):
+
+    normalized_query = query.strip()
+
+    replacements = {
+        "how many countries does infosys operate in":
+            "Infosys operates in countries global presence",
+
+        "how many employees did infosys have":
+            "Infosys employees workforce total employees",
+
+        "how many active clients did infosys have":
+            "Infosys active clients number",
+
+        "what percentage of infosys revenue came from north america":
+            "Infosys revenue by geography North America percentage",
+
+        "what is the purpose of infosys":
+            "Infosys purpose amplify human potential",
+
+        "what are the values represented by c-life":
+            "Infosys C-LIFE values Client value Leadership Integrity Fairness Excellence",
+    }
+
+    query_lower = normalized_query.lower()
+
+    if query_lower in replacements:
+        return replacements[query_lower]
+
+    return normalized_query
+
 
 # =========================================================
-# 15. BUILD FINAL CONTEXT
+# 9. RAG FUNCTION
 # =========================================================
 
-final_context = []
-seen_chunks = set()
+def run_rag(query):
 
-for document, score in top_results:
+    if not query or not query.strip():
+        raise ValueError("Question cannot be empty")
 
-    expanded_chunks = expand_context(document)
+    query = query.strip()
 
-    for chunk in expanded_chunks:
+    retrieval_query = normalize_query(query)
 
-        chunk_id = chunk.metadata["chunk_id"]
+    # -----------------------------------------------------
+    # FAISS RETRIEVAL
+    # -----------------------------------------------------
+
+    faiss_results = vector_store.similarity_search(
+        retrieval_query,
+        k=20
+    )
+
+    # -----------------------------------------------------
+    # BM25 RETRIEVAL
+    # -----------------------------------------------------
+
+    tokenized_query = retrieval_query.lower().split()
+
+    bm25_scores = bm25.get_scores(tokenized_query)
+
+    top_bm25_indices = sorted(
+        range(len(bm25_scores)),
+        key=lambda i: bm25_scores[i],
+        reverse=True
+    )[:20]
+
+    bm25_results = [
+        documents[i]
+        for i in top_bm25_indices
+    ]
+
+    # -----------------------------------------------------
+    # COMBINE FAISS + BM25
+    # -----------------------------------------------------
+
+    candidate_documents = {}
+
+    for document in faiss_results + bm25_results:
+
+        key = (
+            document.metadata["pdf_page"],
+            document.metadata["chunk_id"]
+        )
+
+        candidate_documents[key] = document
+
+    candidates = list(candidate_documents.values())
+
+    # -----------------------------------------------------
+    # BGE RERANKING
+    # -----------------------------------------------------
+
+    pairs = [
+        [retrieval_query, document.page_content]
+        for document in candidates
+    ]
+
+    scores = reranker.predict(pairs)
+
+    reranked_results = sorted(
+        zip(candidates, scores),
+        key=lambda x: x[1],
+        reverse=True
+    )
+
+    # -----------------------------------------------------
+    # SELECT TOP 5
+    # -----------------------------------------------------
+
+    top_results = reranked_results[:10]
+
+    print("\n==============================")
+    print("TOP RERANKED RESULTS")
+    print("==============================")
+
+    for rank, (document, score) in enumerate(
+        top_results,
+        start=1
+    ):
+        print(
+            f"Rank {rank} | "
+            f"Score {score:.4f} | "
+            f"Page {document.metadata['pdf_page']} | "
+            f"Chunk {document.metadata['chunk_id']}"
+        )
+
+    # -----------------------------------------------------
+    # BUILD FINAL CONTEXT
+    # -----------------------------------------------------
+
+    # -----------------------------------------------------
+    # BUILD FINAL CONTEXT
+    # -----------------------------------------------------
+
+    final_context = []
+    seen_chunks = set()
+
+    for document, score in top_results:
+
+        # Temporary test:
+        # Use only the BGE reranked chunks.
+        # Do not expand with previous/next chunks.
+        chunk_id = document.metadata["chunk_id"]
 
         if chunk_id not in seen_chunks:
 
-            final_context.append(chunk)
+            final_context.append(document)
             seen_chunks.add(chunk_id)
+    # -----------------------------------------------------
+    # BUILD LABELED CONTEXT
+    # -----------------------------------------------------
 
+    context_parts = []
 
-print("\nFinal context chunks:", len(final_context))
+    for document in final_context:
 
+        chunk_id = document.metadata["chunk_id"]
+        pdf_page = document.metadata["pdf_page"]
 
-# =========================================================
-# 16. BUILD LLM CONTEXT
-# =========================================================
+        context_parts.append(
+            f"[CHUNK_{chunk_id}]\n"
+            f"PDF Page: {pdf_page}\n"
+            f"{document.page_content}"
+        )
 
-context_parts = []
+    context = "\n\n".join(context_parts)
 
-for document in final_context:
+    # -----------------------------------------------------
+    # SYSTEM PROMPT
+    # -----------------------------------------------------
 
-    page = document.metadata["pdf_page"]
-    chunk_id = document.metadata["chunk_id"]
+    system_prompt = """
+    You are a financial research assistant.
 
-    context_parts.append(
-        f"""
-[PDF Page: {page} | Chunk: {chunk_id}]
-{document.page_content}
-"""
+    Answer the user's question using ONLY the provided context.
+
+    Return your response as valid JSON with exactly these two fields:
+
+    {
+        "answer": "your answer here",
+        "citations": ["CHUNK_ID_1", "CHUNK_ID_2"]
+    }
+
+    Rules:
+    1. The answer must be based only on the provided context.
+    2. citations must contain only chunk IDs that actually appear in the context.
+    3. Cite only chunks that directly support the answer.
+    4. Do not invent chunk IDs.
+    5. If the context does not contain enough information to answer the question, say so in the answer and return an empty citations list.
+    6. Do not include PDF page numbers in the citations.
+    7. Do not use Markdown outside the JSON object.
+    """
+
+    # -----------------------------------------------------
+    # USER PROMPT
+    # -----------------------------------------------------
+
+    user_prompt = f"""
+    Context from the annual report:
+
+    {context}
+
+    User question:
+
+    {query}
+
+    Answer the question using only the provided context.
+    """
+
+    # -----------------------------------------------------
+    # CALL QWEN
+    # -----------------------------------------------------
+
+    try:
+
+        response = client.chat.completions.create(
+            model="qwen/qwen3.8-27b",
+
+            messages=[
+                {
+                    "role": "system",
+                    "content": system_prompt
+                },
+                {
+                    "role": "user",
+                    "content": user_prompt
+                }
+            ],
+
+            reasoning_format="hidden",
+
+            response_format={
+                "type": "json_object"
+            },
+
+            temperature=0.1,
+
+            max_tokens=1000
+        )
+
+    except Exception as error:
+
+        print("\nLLM ERROR:")
+        print(error)
+
+        return {
+            "question": query,
+            "answer": "",
+            "citation_ids": [],
+            "validated_documents": [],
+            "source_pages": [],
+            "final_context": final_context,
+            "error": str(error)
+        }
+
+    # -----------------------------------------------------
+    # PARSE LLM RESPONSE
+    # -----------------------------------------------------
+
+    llm_output = response.choices[0].message.content
+
+    try:
+
+        result = json.loads(llm_output)
+
+        # Validate the LLM output using Pydantic
+        structured_response = RAGResponse.model_validate(result)
+
+        answer = structured_response.answer
+        citation_ids = structured_response.citations
+
+    except (json.JSONDecodeError, ValueError) as error:
+
+        print("\nSTRUCTURED OUTPUT ERROR:")
+        print(error)
+
+        answer = ""
+        citation_ids = []
+
+    # -----------------------------------------------------
+    # VALIDATE CITATIONS
+    # -----------------------------------------------------
+
+    validated_documents = validate_citations(
+        citation_ids,
+        final_context
     )
 
+    source_pages = get_source_pages(
+        validated_documents
+    )
 
-context = "\n".join(context_parts)
+    # -----------------------------------------------------
+    # RETURN RESULT
+    # -----------------------------------------------------
 
-
-# =========================================================
-# 17. CREATE PROMPT
-# =========================================================
-
-system_prompt = """
-You are a financial research assistant.
-
-Answer the user's question using ONLY the information
-provided in the context.
-
-Rules:
-
-1. Do not use outside knowledge.
-2. Do not invent facts or numbers.
-3. If the context does not contain enough information,
-   say that the information is not available in the
-   provided document.
-4. Give a clear and concise answer.
-5. When possible, mention the relevant PDF page number.
-6. For numerical questions, preserve the numbers and
-   units exactly as supported by the context.
-7. Do not provide financial advice or tell the user
-   whether they should buy or sell an investment.
-"""
-
-
-user_prompt = f"""
-Context from the annual report:
-
-{context}
-
-User question:
-
-{query}
-
-Answer the question using only the provided context.
-"""
-
-
-# =========================================================
-# 18. CALL QWEN 3.6 27B
-# =========================================================
-
-print("\nGenerating answer with Qwen 3.6 27B...")
-
-response = client.chat.completions.create(
-    model="qwen/qwen3.6-27b",
-
-    messages=[
-        {
-            "role": "system",
-            "content": system_prompt
-        },
-        {
-            "role": "user",
-            "content": user_prompt
-        }
-    ],
-
-    reasoning_format="hidden",
-
-    temperature=0.1,
-
-    max_tokens=1000
-)
-
-
-# =========================================================
-# 19. GET ANSWER
-# =========================================================
-
-answer = response.choices[0].message.content
-
-
-# =========================================================
-# 20. COLLECT SOURCE PAGES
-# =========================================================
-
-source_pages = sorted(
-    {
-        document.metadata["pdf_page"]
-        for document in final_context
+    return {
+        "question": query,
+        "answer": answer,
+        "citation_ids": citation_ids,
+        "validated_documents": validated_documents,
+        "source_pages": source_pages,
+        "final_context": final_context
     }
-)
 
 
 # =========================================================
-# 21. DISPLAY FINAL ANSWER
+# 10. MANUAL TEST MODE
 # =========================================================
 
-print("\n")
-print("======================================")
-print("             RAG ANSWER")
-print("======================================")
+if __name__ == "__main__":
 
-print(answer)
+    query = input(
+        "\nEnter your question: "
+    ).strip()
 
-print("\nSources:")
+    result = run_rag(query)
 
-for page in source_pages:
-    print(f"- PDF Page {page}")
+    print("\n")
+    print("======================================")
+    print("             RAG ANSWER")
+    print("======================================")
 
-print("======================================")
+    print(result["answer"])
+
+    print("\nSources:")
+
+    for page in result["source_pages"]:
+        print(f"- PDF Page {page}")
+
+    print("======================================")

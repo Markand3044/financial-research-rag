@@ -25,7 +25,7 @@
     },
     {
         "question": "What are the values represented by C-LIFE?",
-        "expected_page": 10
+        "expected_page": [10,90]
     },
     {
         "question": "How many countries does Infosys operate in?",

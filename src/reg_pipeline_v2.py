@@ -164,6 +164,18 @@ def normalize_query(query):
     return normalized_query
 
 
+def get_retrieval_confidence(reranked_results):
+    """
+    Calculate a simple retrieval confidence from the top reranked result.
+    """
+
+    if not reranked_results:
+        return 0.0
+
+    top_score = reranked_results[0][1]
+
+    return float(top_score)
+
 # =========================================================
 # 9. RAG FUNCTION
 # =========================================================
@@ -239,6 +251,10 @@ def run_rag(query):
         reverse=True
     )
 
+    retrieval_confidence = get_retrieval_confidence(reranked_results)
+
+    print(f"\nRetrieval confidence: {retrieval_confidence:.4f}")
+
     # -----------------------------------------------------
     # SELECT TOP 5
     # -----------------------------------------------------
@@ -308,7 +324,7 @@ def run_rag(query):
     system_prompt = """
     You are a financial research assistant.
 
-    Answer the user's question using ONLY the provided context.
+    Your task is to answer the user's question using ONLY the provided context.
 
     Return your response as valid JSON with exactly these two fields:
 
@@ -318,13 +334,23 @@ def run_rag(query):
     }
 
     Rules:
-    1. The answer must be based only on the provided context.
-    2. citations must contain only chunk IDs that actually appear in the context.
-    3. Cite only chunks that directly support the answer.
-    4. Do not invent chunk IDs.
-    5. If the context does not contain enough information to answer the question, say so in the answer and return an empty citations list.
-    6. Do not include PDF page numbers in the citations.
-    7. Do not use Markdown outside the JSON object.
+
+    1. Use only information explicitly supported by the provided context.
+    2. Do not use outside knowledge.
+    3. Give a clear and concise answer to the user's question.
+    4. Include important numbers, dates, percentages, currencies, and units when they are present in the context.
+    5. Do not make assumptions or infer information that is not supported by the context.
+    6. citations must contain only chunk IDs that actually appear in the provided context.
+    7. Cite only chunks that directly support the answer.
+    8. Do not cite every available chunk unnecessarily.
+    9. Do not invent citation IDs.
+    10. If multiple chunks support different parts of the answer, cite all relevant chunks.
+    11. If the context does not contain enough information to answer the question reliably:
+        - say that the available context does not contain enough information
+        - return an empty citations list
+    12. Do not include PDF page numbers inside the citations list.
+    13. Do not include Markdown outside the JSON object.
+    14. Keep the answer focused on the user's question.
     """
 
     # -----------------------------------------------------

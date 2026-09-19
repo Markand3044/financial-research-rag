@@ -9,10 +9,9 @@ from rank_bm25 import BM25Okapi
 from sentence_transformers import CrossEncoder
 from groq import Groq
 
-from citation_validator import validate_citations
-from citation_handler import get_source_pages, format_sources
-from output_schema import RAGResponse, RAGResult
-
+from src.citation_validator import validate_citations
+from src.citation_handler import get_source_pages
+from src.output_schema import RAGResponse, RAGResult
 
 # =========================================================
 # 1. LOAD ENVIRONMENT VARIABLES

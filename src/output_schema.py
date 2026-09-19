@@ -9,3 +9,8 @@ class RAGResponse(BaseModel):
     citations: list[str] = Field(
         description="Chunk IDs supporting the answer"
     )
+
+class RAGResult(BaseModel):
+    answer: str
+    citations: list[str]
+    source_pages: list[int]

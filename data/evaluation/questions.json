@@ -1,42 +1,62 @@
 [
     {
         "question": "What was Infosys total revenue from operations in fiscal 2026?",
-        "expected_page": 33
+        "expected_page": 33,
+        "answerable": true
     },
      {
         "question": "How many employees did Infosys have?",
-        "expected_page": 10
+        "expected_page": 10,
+        "answerable": true
     },
     {
         "question": "How many active clients did Infosys have?",
-        "expected_page": 10
+        "expected_page": 10,
+        "answerable": true
     },
     {
         "question": "What percentage of Infosys revenue came from North America?",
-        "expected_page": 10
+        "expected_page": 10,
+        "answerable": true
     },
     {
         "question": "What was Infosys revenue from operations in fiscal 2025?",
-        "expected_page": 33
+        "expected_page": 33,
+        "answerable": true
     },
     {
         "question": "What is the purpose of Infosys?",
-        "expected_page": 10
+        "expected_page": 10,
+        "answerable": true
     },
     {
         "question": "What are the values represented by C-LIFE?",
-        "expected_page": [10,90]
+        "expected_page": [10,90],
+        "answerable": true
     },
     {
         "question": "How many countries does Infosys operate in?",
-        "expected_page": 10
+        "expected_page": 10,
+        "answerable": true
     },
     {
         "question": "What was Infosys consolidated total income in fiscal 2026?",
-        "expected_page": 33
+        "expected_page": 33,
+        "answerable": true
     },
     {
         "question": "What are the major geographical regions contributing to Infosys revenue?",
-        "expected_page": 10
+        "expected_page": 10,
+        "answerable": true
+    },
+    {
+        "question": "What is the current stock price of Infosys?",
+        "expected_page": null,
+        "answerable": false
+    },
+    {
+        "question": "What will be Infosys revenue in fiscal 2027?",
+        "expected_page": null,
+        "answerable": false
     }
 ]

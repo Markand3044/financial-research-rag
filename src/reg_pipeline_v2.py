@@ -11,7 +11,7 @@ from groq import Groq
 
 from citation_validator import validate_citations
 from citation_handler import get_source_pages, format_sources
-from output_schema import RAGResponse
+from output_schema import RAGResponse, RAGResult
 
 
 # =========================================================
@@ -164,18 +164,6 @@ def normalize_query(query):
     return normalized_query
 
 
-def get_retrieval_confidence(reranked_results):
-    """
-    Calculate a simple retrieval confidence from the top reranked result.
-    """
-
-    if not reranked_results:
-        return 0.0
-
-    top_score = reranked_results[0][1]
-
-    return float(top_score)
-
 # =========================================================
 # 9. RAG FUNCTION
 # =========================================================
@@ -250,10 +238,6 @@ def run_rag(query):
         key=lambda x: x[1],
         reverse=True
     )
-
-    retrieval_confidence = get_retrieval_confidence(reranked_results)
-
-    print(f"\nRetrieval confidence: {retrieval_confidence:.4f}")
 
     # -----------------------------------------------------
     # SELECT TOP 5
@@ -456,15 +440,11 @@ def run_rag(query):
     # RETURN RESULT
     # -----------------------------------------------------
 
-    return {
-        "question": query,
-        "answer": answer,
-        "citation_ids": citation_ids,
-        "validated_documents": validated_documents,
-        "source_pages": source_pages,
-        "final_context": final_context
-    }
-
+    return RAGResult(
+        answer=answer,
+        citations=citation_ids,
+        source_pages=source_pages
+    )
 
 # =========================================================
 # 10. MANUAL TEST MODE
@@ -483,11 +463,11 @@ if __name__ == "__main__":
     print("             RAG ANSWER")
     print("======================================")
 
-    print(result["answer"])
+    print(result.answer)
 
     print("\nSources:")
 
-    for page in result["source_pages"]:
+    for page in result.source_pages:
         print(f"- PDF Page {page}")
 
     print("======================================")

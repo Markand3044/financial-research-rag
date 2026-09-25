@@ -1,27 +1,28 @@
 from pypdf import PdfReader
-import json
 
-path = "C:/Users/Admin/Desktop/FinancialResearchRAG/data/raw/infosys-ar-26.pdf"
 
-read = PdfReader(path)
+def extract_pages(pdf_path):
+    """
+    Extract text from every page of a PDF.
 
-print("Number of pages :-", len(read.pages))
+    Parameters:
+        pdf_path: Path to the PDF file.
 
-pages1 = []
+    Returns:
+        List of dictionaries containing PDF page number and text.
+    """
 
-for page_number, page in enumerate(read.pages, start=1):
+    reader = PdfReader(pdf_path)
 
-    text = page.extract_text()
+    pages = []
 
-    pages1.append({
-        'pdf_page': page_number,
-        'text': text
-    })
+    for page_number, page in enumerate(reader.pages, start=1):
 
-print("Pages extracted:", len(pages1))
+        text = page.extract_text()
 
-output_path = "C:/Users/Admin/Desktop/FinancialResearchRAG/data/processed/infosys_pages.json"
+        pages.append({
+            "pdf_page": page_number,
+            "text": text
+        })
 
-with open(output_path, "w", encoding="utf-8") as file:
-    json.dump(pages1, file, ensure_ascii= False, indent= 4)
-print("saved extracted pages to:", output_path)
+    return pages

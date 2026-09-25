@@ -7,3 +7,4 @@ data/processed/
 data/vectorstore/
 .vscode/
 .ipynb_checkpoints/
+data/uploads/

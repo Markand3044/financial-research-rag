@@ -37,34 +37,48 @@ embeddings = HuggingFaceEmbeddings(
 
 
 # =========================================================
-# 3. LOAD FAISS VECTOR STORE
+# 3. LOAD DOCUMENT RESOURCES
 # =========================================================
 
-print("Loading FAISS vector store...")
+def load_document_resources(vectorstore_path):
 
-vector_store = FAISS.load_local(
-    "C:/Users/Admin/Desktop/FinancialResearchRAG/data/vectorstore/infosys_faiss",
-    embeddings,
-    allow_dangerous_deserialization=True
-)
+    print("Loading FAISS vector store...")
 
-documents = list(vector_store.docstore._dict.values())
+    vector_store = FAISS.load_local(
+        vectorstore_path,
+        embeddings,
+        allow_dangerous_deserialization=True
+    )
 
-print("Total documents:", len(documents))
+    documents = list(
+        vector_store.docstore._dict.values()
+    )
 
+    print("Total documents:", len(documents))
 
-# =========================================================
-# 4. CREATE BM25 INDEX
-# =========================================================
+    # -----------------------------------------------------
+    # Create BM25 index
+    # -----------------------------------------------------
 
-print("Creating BM25 index...")
+    print("Creating BM25 index...")
 
-tokenized_documents = [
-    document.page_content.lower().split()
-    for document in documents
-]
+    tokenized_documents = [
+        document.page_content.lower().split()
+        for document in documents
+    ]
 
-bm25 = BM25Okapi(tokenized_documents)
+    bm25 = BM25Okapi(tokenized_documents)
+
+    # -----------------------------------------------------
+    # Create chunk lookup
+    # -----------------------------------------------------
+
+    chunk_lookup = {
+        document.metadata["chunk_id"]: document
+        for document in documents
+    }
+
+    return vector_store, documents, bm25, chunk_lookup
 
 
 # =========================================================
@@ -86,22 +100,11 @@ client = Groq(
     api_key=groq_api_key
 )
 
-
-# =========================================================
-# 7. CHUNK LOOKUP
-# =========================================================
-
-chunk_lookup = {
-    document.metadata["chunk_id"]: document
-    for document in documents
-}
-
-
 # =========================================================
 # 8. CONTEXT EXPANSION
 # =========================================================
 
-def expand_context(document):
+def expand_context(document, chunk_lookup):
 
     chunk_id = document.metadata["chunk_id"]
     page = document.metadata["pdf_page"]
@@ -167,7 +170,11 @@ def normalize_query(query):
 # 9. RAG FUNCTION
 # =========================================================
 
-def run_rag(query):
+def run_rag(query, vectorstore_path):
+
+    vector_store, documents, bm25, chunk_lookup = load_document_resources(
+    vectorstore_path
+    )
 
     if not query or not query.strip():
         raise ValueError("Question cannot be empty")

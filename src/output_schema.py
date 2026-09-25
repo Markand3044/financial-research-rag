@@ -11,6 +11,6 @@ class RAGResponse(BaseModel):
     )
 
 class RAGResult(BaseModel):
-    answer: str
+    answer: str 
     citations: list[str]
     source_pages: list[int]

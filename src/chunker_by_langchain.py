@@ -1,47 +1,49 @@
-import json
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-input_path = "C:/Users/Admin/Desktop/FinancialResearchRAG/data/processed/infosys_cleaned_pages.json"
-output_path = "C:/Users/Admin/Desktop/FinancialResearchRAG/data/processed/infosys_chunks_langchain.json"
 
-with open(input_path, 'r', encoding= 'utf-8') as file:
-    pages = json.load(file)
+text_splitter = RecursiveCharacterTextSplitter(
+    chunk_size=1000,
+    chunk_overlap=150
+)
 
-print("Number of pages :-", len(pages))
 
-text_spliter = RecursiveCharacterTextSplitter(chunk_size = 1000, chunk_overlap = 150)
+def create_chunks(pages, company, document, financial_year):
+    """
+    Convert cleaned PDF pages into LangChain text chunks.
 
-chunks = []
+    Parameters:
+        pages: Cleaned pages from clean_pages()
+        company: Company name
+        document: Document name
+        financial_year: Financial year
 
-chunk_id = 0
+    Returns:
+        List of chunks with text and metadata.
+    """
 
-for page in pages :
-    page_chunk = text_spliter.split_text(page['text'])
+    chunks = []
 
-    for chunk_text in page_chunk:   
+    chunk_id = 0
 
-        chunks.append({
-            'text': chunk_text,
-            'metadata' : {
-                "company":'Infosys',
-                "document" : "Infosys Integrated Annual Report 2025-2026",
-                "financial_year" : "2025-2026",
-                "pdf_page" : page['pdf_page'],
-                "pdf_page": page["pdf_page"],
-                "chunk_id": chunk_id
-            }
-        })
+    for page in pages:
 
-        chunk_id += 1 
+        page_chunks = text_splitter.split_text(
+            page["text"]
+        )
 
-with open(output_path, 'w', encoding='utf -8') as file:
-    json.dump(chunks, file, ensure_ascii= False, indent=4)
+        for chunk_text in page_chunks:
 
-print("Total chunks :-", len(chunks))
-print("saved chunks to :-", output_path)
+            chunks.append({
+                "text": chunk_text,
+                "metadata": {
+                    "company": company,
+                    "document": document,
+                    "financial_year": financial_year,
+                    "pdf_page": page["pdf_page"],
+                    "chunk_id": chunk_id
+                }
+            })
 
-print('\n--- FIRST CHUNK ---\n')
-print(chunks[0]['text'])
+            chunk_id += 1
 
-print("\n----- METADATA -----\n")
-print(chunks[0]["metadata"])
+    return chunks

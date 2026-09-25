@@ -9,6 +9,7 @@ from src.pdf_loader import extract_pages
 from src.text_cleaner import clean_pages
 from src.chunker_by_langchain import create_chunks
 from src.vector_store import create_faiss_vectorstore
+from src.document_registry import register_document, get_document
 
 
 app = FastAPI(
@@ -62,11 +63,13 @@ async def upload_pdf(file: UploadFile = File(...)):
     # 3. Create chunks
     # ---------------------------------------------
 
+    document_id = Path(file.filename).stem
+
     chunks = create_chunks(
         cleaned_pages,
-        company="Infosys",
-        document="Infosys Integrated Annual Report 2025-2026",
-        financial_year="2025-2026"
+        company=document_id,
+        document=file.filename,
+        financial_year="unknown"
     )
 
     # ---------------------------------------------
@@ -84,6 +87,15 @@ async def upload_pdf(file: UploadFile = File(...)):
         chunks,
         vectorstore_path
     )
+    # ---------------------------------------------
+    # 5. Register document
+    # ---------------------------------------------
+
+    register_document(
+        document_id=document_id,
+        filename=file.filename,
+        vectorstore_path=vectorstore_path
+    )
 
     return {
         "message": "PDF uploaded and processed successfully",
@@ -97,16 +109,15 @@ async def upload_pdf(file: UploadFile = File(...)):
 @app.post("/ask")
 def ask_question(request: QuestionRequest):
 
-    vectorstore_path = (
-        Path("data/vectorstore")
-        / f"{request.document_id}_faiss"
-    )
+    document = get_document(request.document_id)
 
-    if not vectorstore_path.exists():
+    if document is None:
         raise HTTPException(
             status_code=404,
-            detail="Document vector store not found."
+            detail="Document not found."
         )
+
+    vectorstore_path = document["vectorstore_path"]
 
     result = run_rag(
         request.question,

@@ -8,3 +8,4 @@ data/vectorstore/
 .vscode/
 .ipynb_checkpoints/
 data/uploads/
+data/document_registry.json

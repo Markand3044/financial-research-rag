@@ -78,17 +78,22 @@ async def upload_pdf(file: UploadFile = File(...)):
     with file_path.open("wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
-    # ---------------------------------------------
-    # 1. Extract PDF pages
-    # ---------------------------------------------
+    if file_path.stat().st_size == 0:
+        file_path.unlink(missing_ok=True)
+        raise HTTPException(
+            status_code=400,
+            detail="Uploaded file is empty."
+        )
 
     pages = extract_pages(file_path)
-
-    # ---------------------------------------------
-    # 2. Clean extracted text
-    # ---------------------------------------------
-
     cleaned_pages = clean_pages(pages)
+
+    if not cleaned_pages:
+        file_path.unlink(missing_ok=True)
+        raise HTTPException(
+            status_code=400,
+            detail="No extractable text found in the PDF."
+        )
 
     # ---------------------------------------------
     # 3. Create chunks

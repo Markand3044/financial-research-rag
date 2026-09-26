@@ -49,3 +49,15 @@ def get_document(document_id):
     registry = load_registry()
 
     return registry.get(document_id)
+
+def delete_document(document_id):
+    registry = load_registry()
+
+    if document_id not in registry:
+        return None
+
+    deleted_document = registry.pop(document_id)
+
+    save_registry(registry)
+
+    return deleted_document

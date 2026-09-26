@@ -9,7 +9,12 @@ from src.pdf_loader import extract_pages
 from src.text_cleaner import clean_pages
 from src.chunker_by_langchain import create_chunks
 from src.vector_store import create_faiss_vectorstore
-from src.document_registry import (register_document, get_document, load_registry)
+from src.document_registry import (
+    register_document,
+    get_document,
+    load_registry,
+    delete_document
+)
 
 
 app = FastAPI(
@@ -188,5 +193,47 @@ def ask_question(request: QuestionRequest):
     )
 
     return result
+
+@app.delete("/documents/{document_id}")
+def delete_document_endpoint(document_id: str):
+
+    document = get_document(document_id)
+
+    if document is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Document not found."
+        )
+
+    vectorstore_path = Path(
+        document["vectorstore_path"]
+    )
+
+    # Delete vector store
+    if vectorstore_path.exists():
+
+        shutil.rmtree(
+            vectorstore_path
+        )
+
+    # Delete uploaded PDF
+    upload_path = (
+        UPLOAD_DIR
+        / document["filename"]
+    )
+
+    if upload_path.exists():
+
+        upload_path.unlink()
+
+    # Remove from registry
+    delete_document(
+        document_id
+    )
+
+    return {
+        "message": "Document deleted successfully",
+        "document_id": document_id
+    }
 
 

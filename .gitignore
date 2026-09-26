@@ -9,3 +9,4 @@ data/vectorstore/
 .ipynb_checkpoints/
 data/uploads/
 data/document_registry.json
+data/chat_history.json

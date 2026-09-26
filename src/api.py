@@ -9,7 +9,7 @@ from src.pdf_loader import extract_pages
 from src.text_cleaner import clean_pages
 from src.chunker_by_langchain import create_chunks
 from src.vector_store import create_faiss_vectorstore
-from src.document_registry import register_document, get_document
+from src.document_registry import (register_document, get_document, load_registry)
 
 
 app = FastAPI(
@@ -32,6 +32,37 @@ def root():
         "message": "Financial Research RAG Assistant API is running"
     }
 
+@app.get("/documents")
+def get_documents():
+    registry = load_registry()
+
+    documents = []
+
+    for document_id, document in registry.items():
+        documents.append({
+            "document_id": document_id,
+            "filename": document["filename"]
+        })
+
+    return {
+        "documents": documents
+    }
+
+@app.get("/documents/{document_id}")
+def get_document_details(document_id: str):
+    document = get_document(document_id)
+
+    if document is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Document not found."
+        )
+
+    return {
+        "document_id": document_id,
+        "filename": document["filename"],
+        "vectorstore_path": document["vectorstore_path"]
+    }
 
 @app.post("/upload")
 async def upload_pdf(file: UploadFile = File(...)):
@@ -64,6 +95,12 @@ async def upload_pdf(file: UploadFile = File(...)):
     # ---------------------------------------------
 
     document_id = Path(file.filename).stem
+
+    if get_document(document_id) is not None:
+        raise HTTPException(
+            status_code=409,
+            detail="A document with this filename already exists."
+        )
 
     chunks = create_chunks(
         cleaned_pages,

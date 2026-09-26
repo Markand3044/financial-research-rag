@@ -85,59 +85,80 @@ async def upload_pdf(file: UploadFile = File(...)):
             detail="Uploaded file is empty."
         )
 
-    pages = extract_pages(file_path)
-    cleaned_pages = clean_pages(pages)
-
-    if not cleaned_pages:
-        file_path.unlink(missing_ok=True)
-        raise HTTPException(
-            status_code=400,
-            detail="No extractable text found in the PDF."
-        )
-
-    # ---------------------------------------------
-    # 3. Create chunks
-    # ---------------------------------------------
-
     document_id = Path(file.filename).stem
 
     if get_document(document_id) is not None:
+        file_path.unlink(missing_ok=True)
         raise HTTPException(
             status_code=409,
             detail="A document with this filename already exists."
         )
 
-    chunks = create_chunks(
-        cleaned_pages,
-        company=document_id,
-        document=file.filename,
-        financial_year="unknown"
-    )
+    try:
+        # ---------------------------------------------
+        # 1. Extract PDF text
+        # ---------------------------------------------
 
-    # ---------------------------------------------
-    # 4. Create FAISS vector store
-    # ---------------------------------------------
+        pages = extract_pages(file_path)
 
-    document_id = Path(file.filename).stem
+        # ---------------------------------------------
+        # 2. Clean extracted text
+        # ---------------------------------------------
 
-    vectorstore_path = (
-        Path("data/vectorstore")
-        / f"{document_id}_faiss"
-    )
+        cleaned_pages = clean_pages(pages)
 
-    create_faiss_vectorstore(
-        chunks,
-        vectorstore_path
-    )
-    # ---------------------------------------------
-    # 5. Register document
-    # ---------------------------------------------
+        if not cleaned_pages:
+            file_path.unlink(missing_ok=True)
+            raise HTTPException(
+                status_code=400,
+                detail="No extractable text found in the PDF."
+            )
 
-    register_document(
-        document_id=document_id,
-        filename=file.filename,
-        vectorstore_path=vectorstore_path
-    )
+        # ---------------------------------------------
+        # 3. Create chunks
+        # ---------------------------------------------
+
+        chunks = create_chunks(
+            cleaned_pages,
+            company=document_id,
+            document=file.filename,
+            financial_year="unknown"
+        )
+
+        # ---------------------------------------------
+        # 4. Create FAISS vector store
+        # ---------------------------------------------
+
+        vectorstore_path = (
+            Path("data/vectorstore")
+            / f"{document_id}_faiss"
+        )
+
+        create_faiss_vectorstore(
+            chunks,
+            vectorstore_path
+        )
+
+        # ---------------------------------------------
+        # 5. Register document
+        # ---------------------------------------------
+
+        register_document(
+            document_id=document_id,
+            filename=file.filename,
+            vectorstore_path=vectorstore_path
+        )
+
+    except HTTPException:
+        raise
+
+    except Exception as e:
+        file_path.unlink(missing_ok=True)
+
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to process PDF: {str(e)}"
+        )
 
     return {
         "message": "PDF uploaded and processed successfully",

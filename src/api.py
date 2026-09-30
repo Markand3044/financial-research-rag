@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from pathlib import Path
 import uuid
 import shutil
+import logging
 
 from src.reg_pipeline_v2 import run_rag
 from src.pdf_loader import extract_pages
@@ -17,6 +18,13 @@ from src.document_registry import (
     delete_document
 )
 
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s"
+)
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="Financial Research RAG Assistant",
@@ -94,6 +102,11 @@ async def upload_pdf(file: UploadFile = File(...)):
 
     document_id = Path(file.filename).stem
 
+    logger.info(
+        "Upload started: %s",
+        file.filename
+    )
+
     if get_document(document_id) is not None:
         file_path.unlink(missing_ok=True)
         raise HTTPException(
@@ -156,11 +169,19 @@ async def upload_pdf(file: UploadFile = File(...)):
             stored_filename=safe_filename,
             vectorstore_path=vectorstore_path
         )
+        logger.info(
+            "Document processed successfully: %s",
+            document_id
+        )
 
     except HTTPException:
         raise
 
     except Exception as e:
+        logger.exception(
+            "Failed to process document: %s",
+            file.filename
+        )
         file_path.unlink(missing_ok=True)
 
         raise HTTPException(
@@ -190,9 +211,20 @@ def ask_question(request: QuestionRequest):
 
     vectorstore_path = document["vectorstore_path"]
 
+    logger.info(
+        "RAG request: document_id=%s question=%s",
+        request.document_id,
+        request.question
+    )
+
     result = run_rag(
         request.question,
         str(vectorstore_path)
+    )
+
+    logger.info(
+        "RAG request completed: document_id=%s",
+        request.document_id
     )
 
     return result

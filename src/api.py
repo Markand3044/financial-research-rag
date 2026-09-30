@@ -6,7 +6,7 @@ import uuid
 import shutil
 import logging
 
-from src.reg_pipeline_v2 import run_rag
+
 from src.pdf_loader import extract_pages
 from src.text_cleaner import clean_pages
 from src.chunker_by_langchain import create_chunks
@@ -217,6 +217,8 @@ def ask_question(request: QuestionRequest):
         request.question
     )
 
+    from src.reg_pipeline_v2 import run_rag
+    
     result = run_rag(
         request.question,
         str(vectorstore_path)

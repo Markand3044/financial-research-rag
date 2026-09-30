@@ -2,6 +2,7 @@ from fastapi import FastAPI, UploadFile, File, HTTPException
 from pydantic import BaseModel
 
 from pathlib import Path
+import uuid
 import shutil
 
 from src.reg_pipeline_v2 import run_rag
@@ -78,7 +79,8 @@ async def upload_pdf(file: UploadFile = File(...)):
             detail="Only PDF files are allowed."
         )
 
-    file_path = UPLOAD_DIR / file.filename
+    safe_filename = f"{uuid.uuid4()}.pdf"
+    file_path = UPLOAD_DIR / safe_filename  
 
     with file_path.open("wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
@@ -151,6 +153,7 @@ async def upload_pdf(file: UploadFile = File(...)):
         register_document(
             document_id=document_id,
             filename=file.filename,
+            stored_filename=safe_filename,
             vectorstore_path=vectorstore_path
         )
 
@@ -217,9 +220,14 @@ def delete_document_endpoint(document_id: str):
         )
 
     # Delete uploaded PDF
+    stored_filename = document.get(
+        "stored_filename",
+        document["filename"]
+    )
+
     upload_path = (
         UPLOAD_DIR
-        / document["filename"]
+        / stored_filename
     )
 
     if upload_path.exists():

@@ -31,12 +31,14 @@ def save_registry(registry):
 def register_document(
     document_id,
     filename,
+    stored_filename,
     vectorstore_path
 ):
     registry = load_registry()
 
     registry[document_id] = {
         "filename": filename,
+        "stored_filename": stored_filename,
         "vectorstore_path": str(vectorstore_path)
     }
 

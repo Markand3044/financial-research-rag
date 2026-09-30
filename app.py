@@ -1,6 +1,8 @@
 import json
 import uuid
 from pathlib import Path
+import os
+from dotenv import load_dotenv
 
 import requests
 import streamlit as st
@@ -10,7 +12,12 @@ import streamlit as st
 # CONFIGURATION
 # ============================================================
 
-API_URL = "http://127.0.0.1:8000"
+load_dotenv()
+
+API_URL = os.getenv(
+    "API_URL",
+    "http://127.0.0.1:8000"
+)
 
 CHAT_HISTORY_FILE = Path("data/chat_history.json")
 

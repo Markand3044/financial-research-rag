@@ -109,3 +109,41 @@ def test_ask_returns_rag_result(mock_run_rag):
     assert data["answer"] == "Infosys had 3,28,594 employees."
     assert data["citations"] == ["CHUNK_31"]
     assert data["source_pages"] == [10]
+
+def test_ask_invalid_document():
+    response = client.post(
+        "/ask",
+        json={
+            "question": "How many employees did Infosys have?",
+            "document_id": "document-that-does-not-exist"
+        }
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "detail": "Document not found."
+    }
+
+@patch("src.api.delete_document")
+@patch("src.api.get_document")
+def test_delete_document(mock_get_document, mock_delete_document):
+    mock_get_document.return_value = {
+        "filename": "test.pdf",
+        "stored_filename": "test-stored.pdf",
+        "vectorstore_path": "data/vectorstore/test_faiss"
+    }
+
+    response = client.delete(
+        "/documents/test-document"
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["message"] == "Document deleted successfully"
+    assert data["document_id"] == "test-document"
+
+    mock_delete_document.assert_called_once_with(
+        "test-document"
+    )

@@ -29,11 +29,7 @@ if not groq_api_key:
 # 2. LOAD EMBEDDING MODEL
 # =========================================================
 
-print("Loading embedding model...")
-
-embeddings = HuggingFaceEmbeddings(
-    model_name="sentence-transformers/all-MiniLM-L6-v2"
-)
+embeddings = None
 
 
 # =========================================================
@@ -85,20 +81,31 @@ def load_document_resources(vectorstore_path):
 # 5. LOAD BGE RERANKER
 # =========================================================
 
-print("Loading BGE reranker...")
-
-reranker = CrossEncoder(
-    "BAAI/bge-reranker-base"
-)
+reranker = None
 
 
 # =========================================================
 # 6. LOAD GROQ CLIENT
 # =========================================================
 
-client = Groq(
-    api_key=groq_api_key
-)
+client = None
+
+def load_rag_resources():
+    global embeddings, reranker, client
+
+    if embeddings is None:
+        print("Loading embedding model...")
+        embeddings = HuggingFaceEmbeddings(
+            model_name="sentence-transformers/all-MiniLM-L6-v2"
+        )
+
+    if reranker is None:
+        print("Loading BGE reranker...")
+        reranker = CrossEncoder("BAAI/bge-reranker-base")
+
+    if client is None:
+        print("Loading Groq client...")
+        client = Groq(api_key=groq_api_key)
 
 # =========================================================
 # 8. CONTEXT EXPANSION
@@ -171,6 +178,8 @@ def normalize_query(query):
 # =========================================================
 
 def run_rag(query, vectorstore_path):
+
+    load_rag_resources()
 
     vector_store, documents, bm25, chunk_lookup = load_document_resources(
     vectorstore_path

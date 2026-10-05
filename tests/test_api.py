@@ -1,7 +1,6 @@
+from src.output_schema import RAGResult
 from unittest.mock import patch
-
 from fastapi.testclient import TestClient
-
 from src.api import app
 
 
@@ -86,3 +85,27 @@ def test_upload_rejects_duplicate(mock_get_document):
     assert response.json() == {
         "detail": "A document with this filename already exists."
     }
+
+@patch("src.reg_pipeline_v2.run_rag")
+def test_ask_returns_rag_result(mock_run_rag):
+    mock_run_rag.return_value = RAGResult(
+        answer="Infosys had 3,28,594 employees.",
+        citations=["CHUNK_31"],
+        source_pages=[10]
+    )
+
+    response = client.post(
+        "/ask",
+        json={
+            "question": "How many employees did Infosys have?",
+            "document_id": "infosys-ar-26"
+        }
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["answer"] == "Infosys had 3,28,594 employees."
+    assert data["citations"] == ["CHUNK_31"]
+    assert data["source_pages"] == [10]

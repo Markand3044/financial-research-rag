@@ -10,7 +10,7 @@ import logging
 from src.pdf_loader import extract_pages
 from src.text_cleaner import clean_pages
 from src.chunker_by_langchain import create_chunks
-from src.vector_store import create_faiss_vectorstore
+
 from src.document_registry import (
     register_document,
     get_document,
@@ -154,6 +154,8 @@ async def upload_pdf(file: UploadFile = File(...)):
             / f"{document_id}_faiss"
         )
 
+        from src.vector_store import create_faiss_vectorstore
+        
         create_faiss_vectorstore(
             chunks,
             vectorstore_path

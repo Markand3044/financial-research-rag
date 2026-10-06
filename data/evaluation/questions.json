@@ -2,61 +2,73 @@
     {
         "question": "What was Infosys total revenue from operations in fiscal 2026?",
         "expected_page": 33,
-        "answerable": true
+        "answerable": true,
+        "reference_answer": "Infosys total revenue from operations in fiscal 2026 was ₹1,78,650 crore."
     },
-     {
+    {
         "question": "How many employees did Infosys have?",
         "expected_page": 10,
-        "answerable": true
+        "answerable": true,
+        "reference_answer": "Infosys had 3,28,594 employees."
     },
     {
         "question": "How many active clients did Infosys have?",
         "expected_page": 10,
-        "answerable": true
+        "answerable": true,
+        "reference_answer": "Infosys had 1,965 active clients."
     },
     {
         "question": "What percentage of Infosys revenue came from North America?",
         "expected_page": 10,
-        "answerable": true
+        "answerable": true,
+        "reference_answer": "North America contributed 56.1% of Infosys revenue in fiscal 2026."
     },
     {
         "question": "What was Infosys revenue from operations in fiscal 2025?",
         "expected_page": 33,
-        "answerable": true
+        "answerable": true,
+        "reference_answer": "Infosys revenue from operations in fiscal 2025 was ₹1,62,990 crore."
     },
     {
         "question": "What is the purpose of Infosys?",
         "expected_page": 10,
-        "answerable": true
+        "answerable": true,
+        "reference_answer": "The purpose of Infosys is to amplify human potential and create the next opportunity for people, businesses and communities."
     },
     {
         "question": "What are the values represented by C-LIFE?",
-        "expected_page": [10,90],
-        "answerable": true
+        "expected_page": [10, 90],
+        "answerable": true,
+        "reference_answer": "C-LIFE represents Client value, Leadership by example, Integrity and transparency, Fairness, and Excellence."
     },
     {
         "question": "How many countries does Infosys operate in?",
         "expected_page": 10,
-        "answerable": true
+        "answerable": true,
+        "reference_answer": "Infosys operates in 59 countries."
     },
     {
         "question": "What was Infosys consolidated total income in fiscal 2026?",
         "expected_page": 33,
-        "answerable": true
+        "answerable": true,
+        "reference_answer": "Infosys consolidated total income in fiscal 2026 was ₹1,82,972 crore."
     },
     {
         "question": "What are the major geographical regions contributing to Infosys revenue?",
         "expected_page": 10,
-        "answerable": true
+        "answerable": true,
+        "reference_answer": "The major geographical regions contributing to Infosys revenue are North America, Europe, Rest of the World, and India."
     },
     {
         "question": "What is the current stock price of Infosys?",
         "expected_page": null,
-        "answerable": false
+        "answerable": false,
+        "reference_answer": null
     },
     {
         "question": "What will be Infosys revenue in fiscal 2027?",
         "expected_page": null,
-        "answerable": false
+        "answerable": false,
+        "reference_answer": null
     }
 ]

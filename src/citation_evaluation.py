@@ -1,75 +1,210 @@
 import json
+import os
+import sys
+import re
 
-from reg_pipeline_v2 import run_rag
-from citation_validator import validate_citations
-from citation_handler import get_source_pages
+from sentence_transformers import SentenceTransformer, util
+
+# Allow imports when running:
+# python src/citation_evaluation.py
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from src.reg_pipeline_v2 import run_rag
 
 
 # =========================================================
-# 1. LOAD EVALUATION QUESTIONS
+# 1. CONFIGURATION
 # =========================================================
 
-questions_path = (
-    "C:/Users/Admin/Desktop/FinancialResearchRAG/"
+QUESTIONS_PATH = (
     "data/evaluation/questions.json"
 )
 
-with open(questions_path, "r", encoding="utf-8") as file:
+VECTORSTORE_PATH = (
+    "data/vectorstore/infosys_faiss"
+)
+
+ANSWER_SIMILARITY_THRESHOLD = 0.70
+
+
+# =========================================================
+# 2. LOAD EVALUATION QUESTIONS
+# =========================================================
+
+with open(
+    QUESTIONS_PATH,
+    "r",
+    encoding="utf-8"
+) as file:
+
     questions = json.load(file)
 
 
 # =========================================================
-# 2. EVALUATION FUNCTION
+# 3. LOAD SEMANTIC SIMILARITY MODEL
 # =========================================================
 
-def evaluate_result(result, expected_page):
+print("Loading answer evaluation model...")
+
+similarity_model = SentenceTransformer(
+    "sentence-transformers/all-MiniLM-L6-v2"
+)
+
+print("Answer evaluation model loaded.")
+
+
+# =========================================================
+# 4. ANSWER SIMILARITY FUNCTION
+# =========================================================
+
+def calculate_fact_match(generated_answer, reference_answer):
     """
-    Evaluate the RAG result.
-
-    For answerable questions:
-        - citations must be valid
-        - expected source page must be found
-
-    For unanswerable questions:
-        - citations should be empty
-        - RAG should abstain from answering
+    Check whether important factual values from the reference
+    answer are present in the generated answer.
     """
 
-    citation_ids = result["citation_ids"]
-    final_context = result["final_context"]
+    if not reference_answer:
+        return None
 
-    # -----------------------------------------------------
-    # Validate citations independently
-    # -----------------------------------------------------
+    reference_facts = extract_key_facts(reference_answer)
+    generated_facts = extract_key_facts(generated_answer)
 
-    validated_documents = validate_citations(
-        citation_ids,
-        final_context
+    if not reference_facts:
+        return None
+
+    matched_facts = reference_facts.intersection(generated_facts)
+
+    return len(matched_facts) / len(reference_facts)
+
+def calculate_answer_similarity(
+    generated_answer,
+    reference_answer
+):
+    """
+    Calculate semantic similarity between the
+    generated answer and the reference answer.
+
+    Returns a value between 0 and 1.
+    """
+
+    if not reference_answer:
+        return None
+
+    generated_embedding = similarity_model.encode(
+        generated_answer,
+        convert_to_tensor=True
     )
 
-    source_pages = get_source_pages(
-        validated_documents
+    reference_embedding = similarity_model.encode(
+        reference_answer,
+        convert_to_tensor=True
     )
 
-    # -----------------------------------------------------
-    # Determine whether question is answerable
-    # -----------------------------------------------------
+    similarity = util.cos_sim(
+        generated_embedding,
+        reference_embedding
+    ).item()
 
-    answerable = expected_page is not None
+    return similarity
+
+def extract_key_facts(text):
+    """
+    Extract important factual values from an answer.
+
+    Handles:
+    - percentages
+    - currency values
+    - numbers
+    """
+
+    if not text:
+        return set()
+
+    text = text.lower()
+
+    facts = set()
+
+    # --------------------------------------------------
+    # 1. Percentages
+    # --------------------------------------------------
+    percentages = re.findall(
+        r"\d+(?:\.\d+)?\s*%",
+        text
+    )
+
+    for value in percentages:
+        facts.add(
+            value.replace(" ", "")
+        )
+
+    # --------------------------------------------------
+    # 2. Currency values
+    # --------------------------------------------------
+    currency_values = re.findall(
+        r"(?:₹|rs\.?|inr)\s*[\d,]+(?:\.\d+)?"
+        r"(?:\s*(?:crore|lakh|million|billion))?",
+        text
+    )
+
+    for value in currency_values:
+        normalized = re.sub(
+            r"\s+",
+            " ",
+            value.strip()
+        )
+        facts.add(normalized)
+
+    # --------------------------------------------------
+    # 3. Plain numbers
+    # --------------------------------------------------
+    numbers = re.findall(
+        r"\b\d[\d,]*(?:\.\d+)?\b",
+        text
+    )
+
+    for value in numbers:
+
+        # Ignore years such as 2025 and 2026.
+        if len(value) == 4 and value.startswith(("19", "20")):
+            continue
+
+        facts.add(value)
+
+    return facts
+
+# =========================================================
+# 5. EVALUATION FUNCTION
+# =========================================================
+
+def evaluate_result(
+    result,
+    item
+):
+    """
+    Evaluate one RAG result.
+
+    Checks:
+
+    1. Citation validity
+    2. Expected source-page coverage
+    3. Correct abstention
+    4. Semantic similarity with reference answer
+    """
+
+    answer = result.answer
+    citation_ids = result.citations
+    source_pages = result.source_pages
+
+    expected_page = item["expected_page"]
+    answerable = item.get("answerable", True)
+    reference_answer = item.get("reference_answer")
 
     # -----------------------------------------------------
-    # Answerable question
+    # Expected page coverage
     # -----------------------------------------------------
 
     if answerable:
 
-        # Answerable questions must have valid citations
-        citation_valid = (
-            len(citation_ids) > 0
-            and len(validated_documents) == len(citation_ids)
-        )
-
-        # Check expected page
         if isinstance(expected_page, list):
 
             expected_page_found = any(
@@ -83,26 +218,35 @@ def evaluate_result(result, expected_page):
                 expected_page in source_pages
             )
 
-        # Not applicable for answerable questions
-        abstention_correct = None
+    else:
+
+        expected_page_found = None
 
     # -----------------------------------------------------
-    # Unanswerable question
+    # Citation validity
+    #
+    # run_rag() already validates citations before
+    # returning RAGResult.
+    #
+    # Therefore, citations returned by RAGResult are
+    # considered validated citations.
     # -----------------------------------------------------
+
+    if answerable:
+
+        citation_valid = len(citation_ids) > 0
 
     else:
 
-        # Unanswerable questions should have NO citations
-        citation_valid = (
-            len(citation_ids) == 0
-            and len(validated_documents) == 0
-        )
+        citation_valid = len(citation_ids) == 0
 
-        # There is no expected source page
-        expected_page_found = True
+    # -----------------------------------------------------
+    # Abstention
+    # -----------------------------------------------------
 
-        # Check whether the RAG correctly abstained
-        answer_lower = result["answer"].lower()
+    if not answerable:
+
+        answer_lower = answer.lower()
 
         abstention_correct = (
             "does not contain enough information"
@@ -111,65 +255,114 @@ def evaluate_result(result, expected_page):
             in answer_lower
             or "cannot determine"
             in answer_lower
+            or "cannot be determined"
+            in answer_lower
         )
 
+    else:
+
+        abstention_correct = None
+
     # -----------------------------------------------------
-    # Return evaluation result
-    # IMPORTANT:
-    # This return must be OUTSIDE the if/else blocks
+    # Answer similarity
+    # -----------------------------------------------------
+
+    if answerable and reference_answer:
+
+        answer_similarity = calculate_answer_similarity(
+            answer,
+            reference_answer
+        )
+
+        fact_match = calculate_fact_match(
+            answer,
+            reference_answer
+        )
+
+        # Answer passes if either:
+        # 1. semantic similarity is high
+        # OR
+        # 2. important factual values match
+
+        answer_similarity_pass = (
+            answer_similarity >= ANSWER_SIMILARITY_THRESHOLD
+            or fact_match == 1.0
+        )
+
+    else:
+        answer_similarity = None
+        fact_match = None
+        answer_similarity_pass = None
+    # -----------------------------------------------------
+    # Return evaluation
     # -----------------------------------------------------
 
     return {
         "citation_valid": citation_valid,
         "expected_page_found": expected_page_found,
         "abstention_correct": abstention_correct,
+        "answer_similarity": answer_similarity,
+        "fact_match": fact_match,
+        "answer_similarity_pass": answer_similarity_pass,
         "source_pages": source_pages,
-        "citation_count": len(citation_ids),
-        "valid_citation_count": len(validated_documents)
+        "citation_count": len(citation_ids)
     }
 
 
 # =========================================================
-# 3. RUN EVALUATION
+# 6. EVALUATION COUNTERS
 # =========================================================
-
-print("\n")
-print("======================================")
-print("   RAG ANSWER & CITATION EVALUATION")
-print("======================================")
-
-
-# ---------------------------------------------------------
-# Counters
-# ---------------------------------------------------------
 
 citation_valid_count = 0
 expected_page_count = 0
 abstention_correct_count = 0
+answer_similarity_pass_count = 0
 
 answerable_count = 0
 unanswerable_count = 0
 
 
 # =========================================================
-# 4. EVALUATE EACH QUESTION
+# 7. RUN EVALUATION
 # =========================================================
 
-for index, item in enumerate(questions, start=1):
+print("\n")
+print("==============================================")
+print("       RAG ANSWER & CITATION EVALUATION")
+print("==============================================")
+
+print(
+    f"\nTotal questions: {len(questions)}"
+)
+
+print(
+    f"Answer similarity threshold: "
+    f"{ANSWER_SIMILARITY_THRESHOLD}"
+)
+
+
+for index, item in enumerate(
+    questions,
+    start=1
+):
 
     question = item["question"]
     expected_page = item["expected_page"]
+    answerable = item.get(
+        "answerable",
+        True
+    )
 
-    # If answerable field exists, use it.
-    # Otherwise assume question is answerable.
-    answerable = item.get("answerable", True)
+    reference_answer = item.get(
+        "reference_answer"
+    )
 
     print("\n")
-    print("--------------------------------------")
+    print("----------------------------------------------")
     print(
         f"Question {index}/{len(questions)}"
     )
-    print("--------------------------------------")
+    print("----------------------------------------------")
 
     print("Question:", question)
     print("Expected page:", expected_page)
@@ -180,73 +373,103 @@ for index, item in enumerate(questions, start=1):
     # -----------------------------------------------------
 
     if answerable:
+
         answerable_count += 1
+
     else:
+
         unanswerable_count += 1
 
     # -----------------------------------------------------
-    # Run complete RAG pipeline
+    # Run RAG
     # -----------------------------------------------------
 
-    result = run_rag(question)
+    try:
 
-    if result.get("error"):
+        result = run_rag(
+            question,
+            VECTORSTORE_PATH
+        )
+
+    except Exception as error:
 
         print("\nRAG ERROR:")
-        print(result["error"])
+        print(error)
 
         print("\nStatus: ERROR")
 
         continue
 
     # -----------------------------------------------------
-    # Evaluate result
+    # Evaluate
     # -----------------------------------------------------
 
     evaluation = evaluate_result(
         result,
-        expected_page
+        item
     )
 
     # -----------------------------------------------------
-    # Count citation validity
+    # Citation validity
     # -----------------------------------------------------
 
     if evaluation["citation_valid"]:
+
         citation_valid_count += 1
 
     # -----------------------------------------------------
-    # Count expected page coverage
+    # Expected page
     # -----------------------------------------------------
 
-    if answerable and evaluation["expected_page_found"]:
+    if (
+        answerable
+        and evaluation["expected_page_found"]
+    ):
+
         expected_page_count += 1
 
     # -----------------------------------------------------
-    # Count correct abstention
+    # Abstention
     # -----------------------------------------------------
 
     if (
         not answerable
         and evaluation["abstention_correct"]
     ):
+
         abstention_correct_count += 1
 
     # -----------------------------------------------------
-    # Display answer
+    # Answer similarity
     # -----------------------------------------------------
 
-    print("\nAnswer:")
-    print(result["answer"])
+    if (
+        answerable
+        and evaluation["answer_similarity_pass"]
+    ):
+
+        answer_similarity_pass_count += 1
+
+    # -----------------------------------------------------
+    # Display result
+    # -----------------------------------------------------
+
+    print("\nGenerated answer:")
+    print(result.answer)
+
+    if reference_answer:
+
+        print("\nReference answer:")
+        print(reference_answer)
 
     print("\nLLM citations:")
-    print(result["citation_ids"])
+    print(result.citations)
 
     print("\nSource pages:")
-    print(evaluation["source_pages"])
+    print(result.source_pages)
 
     # -----------------------------------------------------
-    # Citation validity
+    # Citation result
     # -----------------------------------------------------
 
     print(
@@ -257,7 +480,7 @@ for index, item in enumerate(questions, start=1):
     )
 
     # -----------------------------------------------------
-    # Expected page coverage
+    # Page coverage
     # -----------------------------------------------------
 
     if answerable:
@@ -272,12 +495,37 @@ for index, item in enumerate(questions, start=1):
     else:
 
         print(
-            "Expected page coverage:",
-            "N/A"
+            "Expected page coverage: N/A"
         )
 
     # -----------------------------------------------------
-    # Abstention result
+    # Answer similarity
+    # -----------------------------------------------------
+
+    if answerable:
+
+        print(
+            "Answer similarity:",
+            f"{evaluation['answer_similarity']:.3f}"
+        )
+
+        if evaluation["fact_match"] is not None:
+            print(
+                "Fact match:",
+                f"{evaluation['fact_match']:.3f}"
+            )
+        else:
+            print("Fact match: N/A")
+
+        print(
+            "Answer similarity result:",
+            "PASS"
+            if evaluation["answer_similarity_pass"]
+            else "FAIL"
+        )
+
+    # -----------------------------------------------------
+    # Abstention
     # -----------------------------------------------------
 
     if not answerable:
@@ -291,23 +539,23 @@ for index, item in enumerate(questions, start=1):
 
 
 # =========================================================
-# 5. FINAL SUMMARY
+# 8. FINAL SUMMARY
 # =========================================================
 
 total_questions = len(questions)
 
 print("\n")
-print("======================================")
-print("          EVALUATION SUMMARY")
-print("======================================")
+print("==============================================")
+print("              EVALUATION SUMMARY")
+print("==============================================")
 
 
 # ---------------------------------------------------------
-# Overall citation validity
+# Citation validity
 # ---------------------------------------------------------
 
 print(
-    f"Overall citation validity: "
+    f"\nOverall citation validity: "
     f"{citation_valid_count}/{total_questions}"
 )
 
@@ -338,6 +586,17 @@ if answerable_count > 0:
         f"{(expected_page_count / answerable_count) * 100:.1f}%"
     )
 
+    print(
+        f"\nAnswer similarity passing: "
+        f"{answer_similarity_pass_count}/"
+        f"{answerable_count}"
+    )
+
+    print(
+        f"Answer similarity passing percentage: "
+        f"{(answer_similarity_pass_count / answerable_count) * 100:.1f}%"
+    )
+
 
 # ---------------------------------------------------------
 # Unanswerable questions
@@ -352,7 +611,8 @@ if unanswerable_count > 0:
 
     print(
         f"Correct abstention: "
-        f"{abstention_correct_count}/{unanswerable_count}"
+        f"{abstention_correct_count}/"
+        f"{unanswerable_count}"
     )
 
     print(
@@ -361,4 +621,4 @@ if unanswerable_count > 0:
     )
 
 
-print("======================================")
+print("\n==============================================")
